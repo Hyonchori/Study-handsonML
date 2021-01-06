@@ -118,3 +118,148 @@ print(train_features_only_numType.median().values)
 X = imputer.transform(train_features_only_numType)
 train_features_tr = pd.DataFrame(X, columns=train_features_only_numType.columns,
                                  index=train_features_only_numType.index)
+
+train_features_only_catType = train_features[["ocean_proximity"]]
+print(train_features_only_catType.head(10))
+
+
+from sklearn.preprocessing import OrdinalEncoder
+
+ordinal_encoder = OrdinalEncoder()
+train_features_cat_encoded = ordinal_encoder.fit_transform(train_features_only_catType)
+print(train_features_cat_encoded[:10])
+print(ordinal_encoder.categories_)
+
+
+from sklearn.preprocessing import OneHotEncoder
+
+cat_encoder = OneHotEncoder()
+train_features_cat_1hot = cat_encoder.fit_transform(train_features_only_catType)
+print(cat_encoder.categories_)
+print(train_features_cat_1hot.toarray())
+
+
+from sklearn.base import BaseEstimator, TransformerMixin
+
+rooms_ix, bedrooms_ix, pop_ix, house_ix = 3, 4, 5, 6
+
+class CombinedAttributesAdder(BaseEstimator, TransformerMixin):
+    def __init__(self, add_bedrooms_per_room=True):
+        self.add_bedrooms_per_room = add_bedrooms_per_room
+
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        rooms_per_house = X[:, rooms_ix] / X[:, house_ix]
+        pop_per_house = X[:, pop_ix] / X[:, house_ix]
+        if self.add_bedrooms_per_room:
+            bedrooms_per_house = X[:, bedrooms_ix] / X[:, house_ix]
+            return np.c_[X, rooms_per_house, pop_per_house, bedrooms_per_house]
+        else:
+            return np.c_[X, rooms_per_house, pop_per_house]
+
+attr_adder = CombinedAttributesAdder(add_bedrooms_per_room=False)
+train_features_axtra = attr_adder.transform(train_features.values)
+
+print(train_features_axtra)
+
+
+#########################################
+
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+num_pipeline = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("attribs_adder", CombinedAttributesAdder()),
+    ("std_scaler", StandardScaler())
+])
+
+train_features_tr = num_pipeline.fit_transform(train_features_only_numType)
+print(train_features_tr)
+
+
+from sklearn.compose import ColumnTransformer
+
+num_attribs = list(train_features_only_numType)
+cat_attribs = ["ocean_proximity"]
+
+full_pipeline = ColumnTransformer([
+    ("num", num_pipeline, num_attribs),
+    ("cat", OneHotEncoder(), cat_attribs),
+])
+
+train_features_prepared = full_pipeline.fit_transform(train_features)
+print(train_features_prepared)
+print(train_features_prepared.shape)
+
+##############################################
+
+
+
+from sklearn.linear_model import LinearRegression
+
+lin_reg = LinearRegression()
+lin_reg.fit(train_features_prepared, train_labels)
+
+some_data = train_features.iloc[:5]
+some_labels = train_labels.iloc[:5]
+some_data_prepared = full_pipeline.transform(some_data)
+print(some_data_prepared.shape)
+
+print(lin_reg.predict(some_data_prepared))
+print(list(some_labels))
+
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
+
+train_predictions = lin_reg.predict(train_features_prepared)
+lin_mse = mean_squared_error(train_labels, train_predictions)
+lin_rmse = np.sqrt(lin_mse)
+lin_mae = mean_absolute_error(train_labels, train_predictions)
+print(lin_mse, lin_rmse, lin_mae)
+
+
+##################################################
+
+
+from sklearn.tree import DecisionTreeRegressor
+
+tree_reg = DecisionTreeRegressor()
+tree_reg.fit(train_features_prepared, train_labels)
+
+train_predictions = tree_reg.predict(train_features_prepared)
+tree_mse = mean_squared_error(train_labels, train_predictions)
+tree_rmse = np.sqrt(tree_mse)
+tree_mae = mean_absolute_error(train_labels, train_predictions)
+print(tree_mse, tree_rmse, tree_mae)
+
+###################################################
+
+
+from sklearn.model_selection import cross_val_score
+
+scores = cross_val_score(tree_reg, train_features_prepared, train_labels,
+                         scoring="neg_mean_squared_error", cv=10)
+tree_rmse_scores = np.sqrt(-scores)
+print(tree_rmse_scores)
+
+def display_scores(scores):
+    print("")
+    print("점수 : ", scores)
+    print("평균 : ", scores.mean())
+    print("표준편차 : ", scores.std())
+
+display_scores(tree_rmse_scores)
+
+######################################################
+
+from sklearn.ensemble import RandomForestRegressor
+
+forest_reg = RandomForestRegressor()
+forest_reg.fit(train_features_prepared, train_labels)
+
+forest_scores = cross_val_score(forest_reg, train_features_prepared, train_labels,
+                                scoring="neg_mean_squared_error", cv=10)
+forest_rmse_scores = np.sqrt(-forest_scores)
+display_scores(forest_rmse_scores)
