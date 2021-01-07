@@ -239,7 +239,7 @@ print(tree_mse, tree_rmse, tree_mae)
 
 from sklearn.model_selection import cross_val_score
 
-scores = cross_val_score(tree_reg, train_features_prepared, train_labels,
+'''scores = cross_val_score(tree_reg, train_features_prepared, train_labels,
                          scoring="neg_mean_squared_error", cv=10)
 tree_rmse_scores = np.sqrt(-scores)
 print(tree_rmse_scores)
@@ -250,7 +250,7 @@ def display_scores(scores):
     print("평균 : ", scores.mean())
     print("표준편차 : ", scores.std())
 
-display_scores(tree_rmse_scores)
+display_scores(tree_rmse_scores)'''
 
 ######################################################
 
@@ -259,7 +259,59 @@ from sklearn.ensemble import RandomForestRegressor
 forest_reg = RandomForestRegressor()
 forest_reg.fit(train_features_prepared, train_labels)
 
-forest_scores = cross_val_score(forest_reg, train_features_prepared, train_labels,
+'''forest_scores = cross_val_score(forest_reg, train_features_prepared, train_labels,
                                 scoring="neg_mean_squared_error", cv=10)
 forest_rmse_scores = np.sqrt(-forest_scores)
-display_scores(forest_rmse_scores)
+display_scores(forest_rmse_scores)'''
+
+################################################
+
+from sklearn.model_selection import GridSearchCV
+
+param_grid = [
+    {"n_estimators": [3, 10, 30], 'max_features': [2, 4, 6, 8]},
+    {'bootstrap': [False], 'n_estimators': [3, 10], 'max_features': [2, 3, 4]},
+]
+
+forest_reg = RandomForestRegressor()
+grid_search = GridSearchCV(forest_reg, param_grid, cv=5,
+                           scoring='neg_mean_squared_error',
+                           return_train_score=True)
+grid_search.fit(train_features_prepared, train_labels)
+print(grid_search.best_params_)
+print("")
+print(grid_search.best_estimator_)
+print(grid_search.cv_results_)
+print("")
+feature_importances = grid_search.best_estimator_.feature_importances_
+pprint(feature_importances)
+
+extra_attribs = ["rooms_per_house", "pop_per_house", "bedrooms_per_room"]
+cat_encoder = full_pipeline.named_transformers_["cat"]
+cat_one_hot_attribs = list(cat_encoder.categories_[0])
+attribs = num_attribs + extra_attribs + cat_one_hot_attribs
+pprint(sorted(zip(feature_importances, attribs), reverse=True))
+
+#####################################################
+
+final_model = grid_search.best_estimator_
+
+test_features = start_test_set.drop("median_house_value", axis=1)
+test_labels = start_test_set["median_house_value"].copy()
+
+test_features_prepared = full_pipeline.transform(test_features)
+
+final_predictions = final_model.predict(test_features_prepared)
+
+final_mse = mean_squared_error(test_labels, final_predictions)
+final_rmse = np.sqrt(final_mse)
+print("")
+print(final_rmse)
+
+from scipy import stats
+
+confidence = 0.95
+squared_error = (final_predictions - test_labels) **2
+print(np.sqrt(stats.t.interval(confidence, len(squared_error)-1,
+                               loc=squared_error.mean(),
+                               scale=stats.sem(squared_error))))
