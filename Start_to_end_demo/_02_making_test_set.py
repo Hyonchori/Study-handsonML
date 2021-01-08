@@ -8,7 +8,7 @@ housing["income_cat"] = pd.cut(housing["median_income"],
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
-split = StratifiedShuffleSplit(n_splits=2, test_size=0.2, random_state=42)
+split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 for train_index, test_index in split.split(housing, housing["income_cat"]):
     start_train_set = housing.loc[train_index]
     start_test_set = housing.loc[test_index]
