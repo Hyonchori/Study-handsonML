@@ -65,6 +65,9 @@ print(data["income_cat"].value_counts())
 for set_ in (start_train_set, start_test_set):
     set_.drop("income_cat", axis=1, inplace=True)
 
+print(start_train_set)
+
+
 train_copy = start_train_set.copy()
 '''train_copy.plot(kind="scatter", x="longitude", y="latitude", alpha=0.1)
 
